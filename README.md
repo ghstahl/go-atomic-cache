@@ -1,4 +1,8 @@
-# go-cache
+# go-atomic-cache
+
+Converted to use sync map  
+got rid of experimental and deprecated stuff  
+
 
 go-cache is an in-memory key:value store/cache similar to memcached that is
 suitable for applications running on a single machine. Its major advantage is
