@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 type Item struct {
@@ -37,8 +39,18 @@ type Cache struct {
 type cache struct {
 	defaultExpiration time.Duration
 	items             sync.Map
+	counter           atomic.Uint32
 	onEvicted         func(string, interface{})
 	janitor           *janitor
+}
+
+func (c *cache) safeStore(key, value interface{}) {
+	c.items.Store(key, value)
+	c.counter.Inc()
+}
+func (c *cache) safeDelete(key interface{}) {
+	c.items.Delete(key)
+	c.counter.Dec()
 }
 
 // Add an item to the cache, replacing any existing item. If the duration is 0
@@ -54,7 +66,7 @@ func (c *cache) Set(k string, x interface{}, d time.Duration) {
 		e = time.Now().Add(d).UnixNano()
 	}
 
-	c.items.Store(k, Item{
+	c.safeStore(k, Item{
 		Object:     x,
 		Expiration: e,
 	})
@@ -69,7 +81,7 @@ func (c *cache) set(k string, x interface{}, d time.Duration) {
 	if d > 0 {
 		e = time.Now().Add(d).UnixNano()
 	}
-	c.items.Store(k, Item{
+	c.safeStore(k, Item{
 		Object:     x,
 		Expiration: e,
 	})
@@ -220,7 +232,7 @@ func (c *cache) Increment(k string, n int64) error {
 
 		return fmt.Errorf("The value for %s is not an integer", k)
 	}
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nil
 }
@@ -247,7 +259,7 @@ func (c *cache) IncrementFloat(k string, n float64) error {
 
 		return fmt.Errorf("The value for %s does not have type float32 or float64", k)
 	}
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nil
 }
@@ -270,7 +282,7 @@ func (c *cache) IncrementInt(k string, n int) (int, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -293,7 +305,7 @@ func (c *cache) IncrementInt8(k string, n int8) (int8, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -316,7 +328,7 @@ func (c *cache) IncrementInt16(k string, n int16) (int16, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -339,7 +351,7 @@ func (c *cache) IncrementInt32(k string, n int32) (int32, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -362,7 +374,7 @@ func (c *cache) IncrementInt64(k string, n int64) (int64, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -385,7 +397,7 @@ func (c *cache) IncrementUint(k string, n uint) (uint, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -408,7 +420,7 @@ func (c *cache) IncrementUintptr(k string, n uintptr) (uintptr, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -431,7 +443,7 @@ func (c *cache) IncrementUint8(k string, n uint8) (uint8, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -454,7 +466,7 @@ func (c *cache) IncrementUint16(k string, n uint16) (uint16, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -477,7 +489,7 @@ func (c *cache) IncrementUint32(k string, n uint32) (uint32, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -500,7 +512,7 @@ func (c *cache) IncrementUint64(k string, n uint64) (uint64, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -523,7 +535,7 @@ func (c *cache) IncrementFloat32(k string, n float32) (float32, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -546,7 +558,7 @@ func (c *cache) IncrementFloat64(k string, n float64) (float64, error) {
 	}
 	nv := rv + n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -597,7 +609,7 @@ func (c *cache) Decrement(k string, n int64) error {
 
 		return fmt.Errorf("The value for %s is not an integer", k)
 	}
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nil
 }
@@ -624,7 +636,7 @@ func (c *cache) DecrementFloat(k string, n float64) error {
 
 		return fmt.Errorf("The value for %s does not have type float32 or float64", k)
 	}
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nil
 }
@@ -647,7 +659,7 @@ func (c *cache) DecrementInt(k string, n int) (int, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -670,7 +682,7 @@ func (c *cache) DecrementInt8(k string, n int8) (int8, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -693,7 +705,7 @@ func (c *cache) DecrementInt16(k string, n int16) (int16, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -716,7 +728,7 @@ func (c *cache) DecrementInt32(k string, n int32) (int32, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -739,7 +751,7 @@ func (c *cache) DecrementInt64(k string, n int64) (int64, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -762,7 +774,7 @@ func (c *cache) DecrementUint(k string, n uint) (uint, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -785,7 +797,7 @@ func (c *cache) DecrementUintptr(k string, n uintptr) (uintptr, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -808,7 +820,7 @@ func (c *cache) DecrementUint8(k string, n uint8) (uint8, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -831,7 +843,7 @@ func (c *cache) DecrementUint16(k string, n uint16) (uint16, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -854,7 +866,7 @@ func (c *cache) DecrementUint32(k string, n uint32) (uint32, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -877,7 +889,7 @@ func (c *cache) DecrementUint64(k string, n uint64) (uint64, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -900,7 +912,7 @@ func (c *cache) DecrementFloat32(k string, n float32) (float32, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -923,7 +935,7 @@ func (c *cache) DecrementFloat64(k string, n float64) (float64, error) {
 	}
 	nv := rv - n
 	v.Object = nv
-	c.items.Store(k, v)
+	c.safeStore(k, v)
 
 	return nv, nil
 }
@@ -941,11 +953,11 @@ func (c *cache) Delete(k string) {
 func (c *cache) delete(k string) (interface{}, bool) {
 	if c.onEvicted != nil {
 		if v, found := c.items.Load(k); found {
-			c.items.Delete(k)
+			c.safeDelete(k)
 			return v.(Item).Object, true
 		}
 	}
-	c.items.Delete(k)
+	c.safeDelete(k)
 	return nil, false
 }
 
@@ -1004,24 +1016,15 @@ func (c *cache) Items() map[string]Item {
 
 // Returns the number of items in the cache. This may include items that have
 // expired, but have not yet been cleaned up.
-func (c *cache) ItemCount() int {
-
-	var n int = 0
-	// UGH
-	counter := func(key interface{}, value interface{}) bool {
-		n = n + 1
-		return true
-	}
-	c.items.Range(counter)
-
-	return n
+func (c *cache) ItemCount() uint32 {
+	return c.counter.Load()
 }
 
 // Delete all items from the cache.
 func (c *cache) Flush() {
 
 	delete := func(key interface{}, value interface{}) bool {
-		c.items.Delete(key)
+		c.safeDelete(key)
 		return true
 	}
 	c.items.Range(delete)
@@ -1067,6 +1070,7 @@ func newCache(de time.Duration, m sync.Map) *cache {
 		defaultExpiration: de,
 		items:             m,
 	}
+	c.counter.Store(0)
 	return c
 }
 
